@@ -1,0 +1,46 @@
+const express = require('express');
+const axios = require('axios');
+const app = express();
+app.use(express.json());
+
+// মেইন ডায়মন্ড সেলার ওয়েবসাইটের API ডিটেইলস (উদাহরণস্বরূপ)
+const MAIN_PROVIDER_API_URL = "https://api.main-diamond-provider.com/order";
+const MY_API_KEY = "KING_OF_GAMES_SECRET_KEY_12345"; 
+
+// যখন কাস্টমার আপনার সাইটে সফলভাবে পেমেন্ট করবে, তখন এই ফাংশনটি কল হবে
+app.post('/api/automatic-topup', async (req, res) => {
+    const { playerID, diamondPackage, customerPaymentStatus } = req.body;
+
+    // ১. প্রথমে চেক করা হবে কাস্টমার টাকা ঠিকঠাক দিয়েছে কিনা
+    if (customerPaymentStatus !== "SUCCESS") {
+        return res.status(400).json({ message: "পেমেন্ট সফল হয়নি! অর্ডার ক্যানসেল।" });
+    }
+
+    try {
+        console.log(`অটোমেটিক অর্ডার প্রসেস হচ্ছে... প্লেয়ার আইডি: ${playerID}`);
+
+        // ২. মেইন ডায়মন্ড সেলারের সার্ভারে অটোমেটিক রিকোয়েস্ট পাঠানো
+        const response = await axios.post(MAIN_PROVIDER_API_URL, {
+            api_key: MY_API_KEY,
+            uid: playerID,
+            package_id: diamondPackage // যেমন: 115_diamonds
+        });
+
+        // ৩. মেইন সার্ভার থেকে ডায়মন্ড চলে গেলে কাস্টমারকে মেসেজ দেখানো
+
+        if (response.data.status === "DELIVERED") {
+            return res.status(200).json({ 
+                message: "আপনার ডায়মন্ড অটোমেটিক ডেলিভারি হয়ে গেছে!",
+                transaction_id: response.data.tx_id 
+            });
+        } else {
+            return res.status(500).json({ message: "মেইন সার্ভারে সমস্যা, অ্যাডমিনকে জানান।" });
+        }
+
+    } catch (error) {
+        console.error("অর্ডার ফেইলড:", error.message);
+        res.status(500).json({ message: "সার্ভার এরর! দয়া করে অপেক্ষা করুন।" });
+    }
+});
+
+app.listen(3000, () => console.log('King of Games অটোমেশন সার্ভার রানিং অন পোর্ট ৩০০০'));
